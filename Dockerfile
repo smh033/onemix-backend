@@ -3,5 +3,5 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend.py .
-EXPOSE 8080
-CMD ["uvicorn", "backend:app", "--host", "0.0.0.0", "--port", "8080"]
+EXPOSE 10000
+CMD ["sh", "-c", "uvicorn backend:app --host 0.0.0.0 --port ${PORT:-10000}"]
