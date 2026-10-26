@@ -64,6 +64,46 @@ async def run_job(job_id: str, payload: DownloadRequest):
     finally:
         RUNNING.discard((payload.userId, payload.track))
 
+
+# Safe connection diagnostic: fixed public Creative Commons test video.
+# Does not download files, accept user-provided video IDs, or change playback.
+PO_TOKEN_TEST_CACHE = None
+PO_TOKEN_TEST_LOCK = asyncio.Lock()
+
+def _run_po_token_diagnostic():
+    yt = YouTube('https://www.youtube.com/watch?v=aqz-KE-bpKQ', client='WEB')
+    title = yt.title  # Metadata only; no file downloads
+    has_token = bool(yt.pot)  # Do not log or return the token itself
+    return {
+        'ok': bool(title),
+        'titleFound': bool(title),
+        'poTokenGenerated': has_token,
+        'client': 'WEB',
+        'downloadAttempted': False,
+        'message': 'Metadata check only; cloud audio downloads are not validated.'
+    }
+
+@app.get('/po-token-test')
+async def po_token_test():
+    global PO_TOKEN_TEST_CACHE
+    async with PO_TOKEN_TEST_LOCK:
+        if PO_TOKEN_TEST_CACHE is not None:
+            return PO_TOKEN_TEST_CACHE
+        try:
+            PO_TOKEN_TEST_CACHE = await asyncio.wait_for(
+                asyncio.to_thread(_run_po_token_diagnostic), timeout=45)
+        except Exception as exc:
+            PO_TOKEN_TEST_CACHE = {
+                'ok': False,
+                'client': 'WEB',
+                'poTokenGenerated': False,
+                'downloadAttempted': False,
+                'errorType': type(exc).__name__,
+                'error': str(exc)[:200]
+            }
+        print('PO token diagnostic result: ' + repr(PO_TOKEN_TEST_CACHE), flush=True)
+        return PO_TOKEN_TEST_CACHE
+
 @app.get('/health')
 def health():
     return {'ok': True, 'configured': bool(SHARED_SECRET and WORKER_URL.startswith('https://')), 'source': 'pytubefix', 'activeJobs': len(RUNNING)}
