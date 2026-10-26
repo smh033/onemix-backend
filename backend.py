@@ -57,7 +57,9 @@ async def run_job(job_id: str, payload: DownloadRequest):
                 content=audio_bytes)
             result.raise_for_status()
         JOBS[job_id]['state']='ready'
+        print(f'Audio job {job_id[:8]} ready — file stored in R2', flush=True)
     except Exception as e:
+        print(f'Audio job {job_id[:8]} failed: {type(e).__name__}: {str(e)[:300]}', flush=True)
         JOBS[job_id].update(state='failed', error=str(e)[:200])
     finally:
         RUNNING.discard((payload.userId, payload.track))
@@ -81,6 +83,7 @@ async def queue_job(payload: DownloadRequest, authorization: str | None = Header
     job_id=uuid.uuid4().hex
     JOBS[job_id]={'state':'processing','userId':payload.userId,'track':payload.track}
     RUNNING.add((payload.userId,payload.track))
+    print(f'Audio job {job_id[:8]} started', flush=True)
     asyncio.create_task(run_job(job_id,payload))
     return {'jobId':job_id,'state':'processing'}
 
